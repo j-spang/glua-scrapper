@@ -72,7 +72,7 @@ namespace glua_scraper
                 if (options.Modes.Contains("all") || options.Modes.Contains("classfuncs"))
                 {
                     Dictionary<string, List<Function>> classFuncs = LoadClassFuncs();
-                    _provider.SaveGenericClassFuncs(classFuncs);
+                    _provider.SaveClassFuncs(classFuncs);
                 }
 
                 if (options.Modes.Contains("all") || options.Modes.Contains("panelfuncs"))
