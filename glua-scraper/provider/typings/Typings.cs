@@ -4,15 +4,22 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using glua_scraper.provider.typings;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace glua_scraper.provider
 {
 
     public class TypingsProvider : IProvider
     {
+        private static Dictionary<string, List<string>> hookAliases = new Dictionary<string, List<string>>(){
+            {
+                "GM", new List<string>{"GAMEMODE"}
+            },
+            {
+                "WEAPON", new List<string>{"SWEP"}
+            },
+        };
 
+        private static Dictionary<string, List<StringBuilder>> classFuncGroups = new Dictionary<string, List<StringBuilder>>();
 
         public string GetName()
         {
@@ -31,7 +38,10 @@ namespace glua_scraper.provider
 
         public void OnFinish()
         {
-
+            if (classFuncGroups.Count > 0)
+            {
+                SaveGenericClassFuncFiles();
+            }
         }
 
 
@@ -70,7 +80,7 @@ namespace glua_scraper.provider
                 sb.AppendLine($"{doc}");
             }
 
-            sb.AppendLine($"\tfunction {func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues, true).Build(func.Description)};");
+            sb.AppendLine($"\t{func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues, true).Build(func.Description)};");
 
             return sb.ToString();
         }
@@ -96,7 +106,6 @@ namespace glua_scraper.provider
 
             sb.AppendLine($"{prefix}function {func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues).Build(func.Description)};");
 
-
             return sb.ToString();
         }
 
@@ -115,7 +124,7 @@ namespace glua_scraper.provider
                 sb.AppendLine($"{doc}");
             }
 
-            sb.AppendLine($"\tfunction {hook.Name}({new Parameters(hook.Args).Build()}): {new ReturnType(hook.ReturnValues, true).Build(hook.Description)};");
+            sb.AppendLine($"\t{hook.Name}({new Parameters(hook.Args).Build()}): {new ReturnType(hook.ReturnValues, true).Build(hook.Description)};");
 
             return sb.ToString();
         }
@@ -145,14 +154,23 @@ namespace glua_scraper.provider
             {
                 StringBuilder sb = new StringBuilder();
 
-                sb.AppendLine($"declare namespace {group} {{");
+                List<string> aliases = GetHookGroupAliases(group);
 
-                foreach (StringBuilder hookDefinition in hookGroups[group])
+                foreach (string alias in aliases)
                 {
-                    sb.AppendLine(hookDefinition.ToString());
-                }
+                    sb.AppendLine("// We declare hooks as classes because base-classes can 'extend' them");
+                    sb.AppendLine("");
 
-                sb.AppendLine("}");
+                    sb.AppendLine($"declare class {alias} {{");
+
+                    foreach (StringBuilder hookDefinition in hookGroups[group])
+                    {
+                        sb.AppendLine(hookDefinition.ToString());
+                    }
+
+                    sb.AppendLine("}");
+                    sb.AppendLine("");
+                }
 
                 createTypingsFile(sb, group, "hooks");
             }
@@ -183,7 +201,9 @@ namespace glua_scraper.provider
             {
                 StringBuilder sb = new StringBuilder();
 
-                sb.AppendLine($"declare namespace {group} {{");
+                sb.AppendLine("/** @noSelfInFile **/");
+                sb.AppendLine("");
+                sb.AppendLine($"declare module {group} {{");
 
                 foreach (StringBuilder libDefinition in libGroups[group])
                 {
@@ -199,21 +219,24 @@ namespace glua_scraper.provider
 
         public void SavePanelFuncs(Dictionary<string, List<Function>> panelFuncs)
         {
-            SaveGenericClassFuncs(panelFuncs, "panels");
+            PrepareGenericClassFuncFiles(panelFuncs, "panels");
         }
 
         public void SaveClassFuncs(Dictionary<string, List<Function>> classFuncs)
         {
-            SaveGenericClassFuncs(classFuncs, "classes");
+            PrepareGenericClassFuncFiles(classFuncs, "classes");
         }
 
-        public void SaveGenericClassFuncs(Dictionary<string, List<Function>> funcs, string fileName)
+        private void PrepareGenericClassFuncFiles(Dictionary<string, List<Function>> funcs, string fileName)
         {
-            Dictionary<string, List<StringBuilder>> funcGroups = new Dictionary<string, List<StringBuilder>>();
 
             foreach (string nameSpace in funcs.Keys)
             {
-                funcGroups[nameSpace] = new List<StringBuilder>();
+                if (!classFuncGroups.ContainsKey(nameSpace))
+                {
+                    classFuncGroups[nameSpace] = new List<StringBuilder>();
+                    TypeMapper.registerType(nameSpace, nameSpace);
+                }
 
                 foreach (Function func in funcs[nameSpace])
                 {
@@ -223,27 +246,31 @@ namespace glua_scraper.provider
 
                     if (func.Name != null && func.Name.Length > 0)
                     {
-                        funcGroups[nameSpace].Add(sb);
+                        classFuncGroups[nameSpace].Add(sb);
                     }
                 }
             }
+        }
 
-            foreach (string group in funcGroups.Keys)
+        private void SaveGenericClassFuncFiles()
+        {
+            foreach (string group in classFuncGroups.Keys)
             {
                 StringBuilder sb = new StringBuilder();
 
-                sb.AppendLine($"declare namespace {group} {{");
+                sb.AppendLine($"declare class {group} {{");
 
-                foreach (StringBuilder classDefinition in funcGroups[group])
+                foreach (StringBuilder classDefinition in classFuncGroups[group])
                 {
                     sb.AppendLine(classDefinition.ToString());
                 }
 
                 sb.AppendLine("}");
 
-                createTypingsFile(sb, group, fileName);
+                createTypingsFile(sb, group, "classes");
             }
         }
+
         public void SaveGlobals(Dictionary<string, List<Function>> globals)
         {
 
@@ -255,7 +282,7 @@ namespace glua_scraper.provider
                 sb.Clear();
                 sb.AppendLine("/** @noSelfInFile **/");
                 sb.AppendLine("");
-                sb.AppendLine($"declare namespace _G {{");
+                sb.AppendLine($"declare module _G {{");
 
                 sbGlobal.Clear();
                 sbGlobal.AppendLine("/** @noSelfInFile **/");
@@ -290,6 +317,18 @@ namespace glua_scraper.provider
             }
 
             File.WriteAllText($"{GetName()}/gmod-typings/{folderName}/{fileName.ToLower()}.d.ts", sb.ToString());
+        }
+
+        private static List<string> GetHookGroupAliases(string hookGroup)
+        {
+            List<string> aliases = new List<string> { hookGroup };
+
+            if (hookAliases.ContainsKey(hookGroup))
+            {
+                aliases.AddRange(hookAliases[hookGroup]);
+            }
+
+            return aliases;
         }
 
         private class ReturnType
@@ -335,61 +374,6 @@ namespace glua_scraper.provider
             private bool hasOptionalReturn()
             {
                 return _canHaveOptionalReturn;
-            }
-        }
-
-        private class Parameters
-        {
-            private List<Arg> _args;
-
-            public Parameters(List<Arg> args)
-            {
-                _args = args;
-            }
-
-            public string Build()
-            {
-                if (_args == null || _args.Count == 0)
-                {
-                    return "";
-                }
-                else
-                {
-                    return String.Join(", ", _args.Select(a => new Parameter(a).Build()));
-                }
-
-            }
-
-            private class Parameter
-            {
-                private Arg _arg;
-                private static Dictionary<string, string> reservedWords = new Dictionary<string, string>() { { "class", "_class" }, { "default", "def" }, { "new", "_new" }, { "interface", "_interface" }, { "function", "func" }, { "var", "variable" }, { "let", "_let" },
-                };
-
-                public Parameter(Arg arg)
-                {
-                    _arg = arg;
-                }
-
-                public string Build()
-                {
-                    string arg = _arg.Name;
-
-                    if (Parameter.reservedWords.ContainsKey(_arg.Name))
-                    {
-                        arg = Parameter.reservedWords[_arg.Name];
-                    }
-
-                    if (_arg.Default != null)
-                    {
-                        arg += '?';
-                    }
-
-                    string tsType = TypeMapper.MapType(_arg.Type);
-                    arg += $": {tsType}";
-
-                    return arg;
-                }
             }
         }
     }

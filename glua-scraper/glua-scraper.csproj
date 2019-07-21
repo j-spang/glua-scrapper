@@ -75,6 +75,7 @@
     <Compile Include="provider\typings\TSTypes.cs" />
     <Compile Include="provider\typings\TypeMapper.cs" />
     <Compile Include="provider\typings\JSDocBuilder.cs" />
+    <Compile Include="provider\typings\Parameters.cs" />
     <Compile Include="provider\VSCodeProvider.cs" />
     <Compile Include="provider\AtomProvider.cs" />
     <Compile Include="provider\IProvider.cs" />

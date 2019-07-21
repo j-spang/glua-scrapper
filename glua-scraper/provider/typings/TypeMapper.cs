@@ -29,7 +29,7 @@ namespace glua_scraper.provider.typings
                     return TSTypes.BOOLEAN;
 
                 default:
-                    Console.WriteLine($"Unknown type {type.Trim().ToLower()} encountered! ({description})");
+                    //Console.WriteLine($"Unknown type {type.Trim().ToLower()} encountered! ({description})");
                     return TSTypes.ANY;
             }
         }
