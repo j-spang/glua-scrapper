@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
 using glua_scraper.provider.typings;
 
@@ -17,6 +15,10 @@ namespace glua_scraper.provider
             {
                 "WEAPON", new List<string>{"SWEP"}
             },
+        };
+
+        private static Dictionary<string, string> classToHookMapper = new Dictionary<string, string>(){
+                {"Panel", "PANEL"}
         };
 
         private static Dictionary<string, List<StringBuilder>> classFuncGroups = new Dictionary<string, List<StringBuilder>>();
@@ -60,7 +62,7 @@ namespace glua_scraper.provider
                 sb.AppendLine($"{doc}");
             }
 
-            sb.AppendLine($"\tfunction {func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues, true).Build(func.Description)};");
+            sb.AppendLine($"\tfunction {func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues, func.Name, false).Build(func.Description)};");
 
             return sb.ToString();
         }
@@ -80,7 +82,7 @@ namespace glua_scraper.provider
                 sb.AppendLine($"{doc}");
             }
 
-            sb.AppendLine($"\t{func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues, true).Build(func.Description)};");
+            sb.AppendLine($"\t{func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues, func.Name, false).Build(func.Description)};");
 
             return sb.ToString();
         }
@@ -104,12 +106,12 @@ namespace glua_scraper.provider
             string prefix = indent ? "\t" : "";
             prefix += global ? "declare " : "";
 
-            sb.AppendLine($"{prefix}function {func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues).Build(func.Description)};");
+            sb.AppendLine($"{prefix}function {func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues, func.Name).Build(func.Description)};");
 
             return sb.ToString();
         }
 
-        private string BuildHookDefinition(Hook hook)
+        private string BuildHookDefinition(Hook hook, bool isModule)
         {
             StringBuilder sb = new StringBuilder();
             JSDocBuilder jsDoc = new JSDocBuilder();
@@ -124,7 +126,8 @@ namespace glua_scraper.provider
                 sb.AppendLine($"{doc}");
             }
 
-            sb.AppendLine($"\t{hook.Name}({new Parameters(hook.Args).Build()}): {new ReturnType(hook.ReturnValues, true).Build(hook.Description)};");
+            string declaration = isModule ? "function " : "";
+            sb.AppendLine($"\t{declaration}{hook.Name}({new Parameters(hook.Args).Build()}): {new ReturnType(hook.ReturnValues, hook.Name, true).Build(hook.Description)};");
 
             return sb.ToString();
         }
@@ -135,13 +138,15 @@ namespace glua_scraper.provider
 
             foreach (string nameSpace in hooks.Keys)
             {
+                bool isModule = !classToHookMapper.ContainsValue(nameSpace);
+
                 hookGroups[nameSpace] = new List<StringBuilder>();
 
                 foreach (Hook hook in hooks[nameSpace])
                 {
                     StringBuilder sb = new StringBuilder();
 
-                    sb.Append(BuildHookDefinition(hook));
+                    sb.Append(BuildHookDefinition(hook, isModule));
 
                     if (hook.Name != null && hook.Name.Length > 0)
                     {
@@ -161,7 +166,17 @@ namespace glua_scraper.provider
                     sb.AppendLine("// We declare hooks as classes because base-classes can 'extend' them");
                     sb.AppendLine("");
 
-                    sb.AppendLine($"declare class {alias} {{");
+
+                    bool isModule = !classToHookMapper.ContainsValue(alias);
+
+                    if (isModule)
+                    {
+                        sb.AppendLine($"declare module {alias} {{");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"declare class {alias} {{");
+                    }
 
                     foreach (StringBuilder hookDefinition in hookGroups[group])
                     {
@@ -258,7 +273,14 @@ namespace glua_scraper.provider
             {
                 StringBuilder sb = new StringBuilder();
 
-                sb.AppendLine($"declare class {group} {{");
+                string classDeclaration = $"declare class {group}";
+
+                if (classToHookMapper.ContainsKey(group))
+                {
+                    classDeclaration += $" extends {classToHookMapper[group]}";
+                }
+
+                sb.AppendLine($"{classDeclaration} {{");
 
                 foreach (StringBuilder classDefinition in classFuncGroups[group])
                 {
@@ -329,52 +351,6 @@ namespace glua_scraper.provider
             }
 
             return aliases;
-        }
-
-        private class ReturnType
-        {
-            private List<Ret> _data;
-            private bool _canHaveOptionalReturn = false;
-
-            public ReturnType(List<Ret> data, bool optReturn = false)
-            {
-                _data = data;
-                _canHaveOptionalReturn = optReturn;
-            }
-
-            public string Build(string desc = "")
-            {
-                if (_data == null || _data.Count == 0)
-                {
-                    return TSTypes.VOID;
-                }
-                else if (_data.Count == 1)
-                {
-                    string type = TypeMapper.MapType(_data[0].Type, desc);
-
-                    if (hasOptionalReturn())
-                    {
-                        return $"{type} | {TSTypes.VOID}";
-                    }
-                    else
-                    {
-                        return type;
-                    }
-                }
-                else if (_data.Count > 1)
-                {
-                    return $"[{String.Join(", ", _data.Select(r => TypeMapper.MapType(r.Type, desc)))}]";
-                }
-                else
-                {
-                    return TSTypes.UNKNOWN;
-                }
-            }
-
-            private bool hasOptionalReturn()
-            {
-                return _canHaveOptionalReturn;
-            }
         }
     }
 }
