@@ -18,6 +18,9 @@ namespace glua_scraper
         [OptionList('m', "modes", Required = true, HelpText = "Which functions we should get [all,hooks,libfuncs,globals,classfuncs,panelfuncs]")]
         public IEnumerable<string> Modes { get; set; }
 
+        [Option('o', "offline", Required = false, HelpText = "Use previously stored data instead of getting new data from the web.")]
+        public bool OfflineMode { get; set; }
+
         [HelpOption]
         public string GetUsage()
         {

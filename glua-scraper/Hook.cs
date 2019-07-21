@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -8,6 +9,7 @@ using Newtonsoft.Json.Linq;
 
 namespace glua_scraper
 {
+    [Serializable]
     public class Hook
     {
         public static readonly Dictionary<string, string> HookDic = new Dictionary<string, string>()

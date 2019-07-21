@@ -1,7 +1,9 @@
-﻿using System.Text.RegularExpressions;
+﻿using System;
+using System.Text.RegularExpressions;
 
 namespace glua_scraper
 {
+    [Serializable]
     public class Arg
     {
         public Arg(string raw)

@@ -10,6 +10,7 @@ using Newtonsoft.Json.Linq;
 
 namespace glua_scraper
 {
+    [Serializable]
     public class Function
     {
         public string Name { get; set; }
