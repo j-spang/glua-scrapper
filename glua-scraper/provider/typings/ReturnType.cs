@@ -18,6 +18,11 @@ namespace glua_scraper.provider
             _canHaveOptionalReturn = optReturn;
         }
 
+        public bool IsTupleReturn()
+        {
+            return _returnData != null && _returnData.Count == 1 && TypeMapper.MapType(_returnData[0].Type) == TSTypes.VARARG;
+        }
+
         public string Build(string desc = "")
         {
             if (_returnData == null || _returnData.Count == 0)

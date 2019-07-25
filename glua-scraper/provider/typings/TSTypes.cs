@@ -11,5 +11,6 @@ namespace glua_scraper.provider.typings
         public const string STRING = "string";
         public const string UNKNOWN = "unknown";
         public const string VOID = "void";
+        public const string VARARG = "any ";
     }
 }

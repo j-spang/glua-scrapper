@@ -9,12 +9,14 @@ namespace glua_scraper.provider.typings
 
         public static string MapType(string type, string description = "")
         {
+            type = type.ToLower().Trim();
+
             if (_classes.ContainsKey(type))
             {
                 return _classes[type];
             }
 
-            switch (type.Trim().ToLower())
+            switch (type)
             {
                 case "string":
                     return TSTypes.STRING;
@@ -28,14 +30,22 @@ namespace glua_scraper.provider.typings
                 case "boolean":
                     return TSTypes.BOOLEAN;
 
+                case "function":
+                    return TSTypes.FUNCTION;
+
+                case "vararg":
+                    return TSTypes.VARARG;
+
                 default:
-                    //Console.WriteLine($"Unknown type {type.Trim().ToLower()} encountered! ({description})");
+                    Console.WriteLine($"Unknown type {type} encountered! ({description})");
                     return TSTypes.ANY;
             }
         }
 
         public static void registerType(string luaType, string tsType)
         {
+            luaType = luaType.ToLower().Trim();
+
             if (!_classes.ContainsKey(luaType))
             {
                 _classes[luaType] = tsType;

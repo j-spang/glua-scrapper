@@ -49,25 +49,10 @@ namespace glua_scraper.provider
 
         private string BuildLibDefintion(Function func)
         {
-            StringBuilder sb = new StringBuilder();
-            JSDocBuilder jsDoc = new JSDocBuilder();
-
-            jsDoc.AddArguments(func.Args);
-            jsDoc.SetDescription(func.Description);
-
-            string doc = jsDoc.Build();
-
-            if (doc.Length > 0)
-            {
-                sb.AppendLine($"{doc}");
-            }
-
-            sb.AppendLine($"\tfunction {func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues, func.Name, false).Build(func.Description)};");
-
-            return sb.ToString();
+            return BuildDefinition(func);
         }
 
-        private string BuildClassDefinition(Function func)
+        private string BuildDefinition(IMember func, bool canHaveOptionalReturn = false, bool isClassDefinition = false)
         {
             StringBuilder sb = new StringBuilder();
             JSDocBuilder jsDoc = new JSDocBuilder();
@@ -82,9 +67,22 @@ namespace glua_scraper.provider
                 sb.AppendLine($"{doc}");
             }
 
-            sb.AppendLine($"\t{func.Name}({new Parameters(func.Args).Build()}): {new ReturnType(func.ReturnValues, func.Name, false).Build(func.Description)};");
+            ReturnType returns = new ReturnType(func.ReturnValues, func.Name, canHaveOptionalReturn);
+            if (returns.IsTupleReturn())
+            {
+                sb.AppendLine("\t/** @tupleReturn */");
+            }
+
+            string prefix = !isClassDefinition ? "function " : "";
+
+            sb.AppendLine($"\t{prefix}{func.Name}({new Parameters(func.Args).Build()}): {returns.Build(func.Description)};");
 
             return sb.ToString();
+        }
+
+        private string BuildClassDefinition(Function func)
+        {
+            return BuildDefinition(func, false, true);
         }
 
         private string BuildGlobalFunctionDefinition(Function func, bool indent = true, bool global = false)
@@ -163,10 +161,6 @@ namespace glua_scraper.provider
 
                 foreach (string alias in aliases)
                 {
-                    sb.AppendLine("// We declare hooks as classes because base-classes can 'extend' them");
-                    sb.AppendLine("");
-
-
                     bool isModule = !classToHookMapper.ContainsValue(alias);
 
                     if (isModule)
@@ -175,6 +169,8 @@ namespace glua_scraper.provider
                     }
                     else
                     {
+                        sb.AppendLine("// We declare this hook as a class so another class can 'extend' it");
+                        sb.AppendLine("");
                         sb.AppendLine($"declare class {alias} {{");
                     }
 
@@ -245,6 +241,8 @@ namespace glua_scraper.provider
         private void PrepareGenericClassFuncFiles(Dictionary<string, List<Function>> funcs, string fileName)
         {
 
+            // We run through all the classes once to register them as TypeScript class type references
+            // This way, a method from class B can have a return type of class B
             foreach (string nameSpace in funcs.Keys)
             {
                 if (!classFuncGroups.ContainsKey(nameSpace))
@@ -252,7 +250,10 @@ namespace glua_scraper.provider
                     classFuncGroups[nameSpace] = new List<StringBuilder>();
                     TypeMapper.registerType(nameSpace, nameSpace);
                 }
+            }
 
+            foreach (string nameSpace in funcs.Keys)
+            {
                 foreach (Function func in funcs[nameSpace])
                 {
                     StringBuilder sb = new StringBuilder();

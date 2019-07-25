@@ -11,7 +11,7 @@ using Newtonsoft.Json.Linq;
 namespace glua_scraper
 {
     [Serializable]
-    public class Function
+    public class Function : IMember
     {
         public string Name { get; set; }
         public string Parent { get; set; }
